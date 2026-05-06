@@ -264,7 +264,6 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 <div class="cf" id="cf"></div>
 <audio id="aud" preload="none"></audio>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <script>
 // ── Stars ─────────────────────────────────────────────────────────────
 const se=document.getElementById('stars');
@@ -273,69 +272,80 @@ for(let i=0;i<50;i++){const s=document.createElement('div');s.className='star';c
 // ── State ─────────────────────────────────────────────────────────────
 const aud = document.getElementById('aud');
 let playing=false, revealed=false, pt=null;
+let detector = null;
 
 function setStat(m,c){const e=document.getElementById('stat');e.textContent=m;e.className='stat'+(c?' '+c:'');}
 function setScanStatus(m,c){const e=document.getElementById('scanStatus');e.textContent=m;e.className='scan-status'+(c?' '+c:'');}
 function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');}
 
+// ── Init BarcodeDetector ──────────────────────────────────────────────
+async function initDetector() {
+  if ('BarcodeDetector' in window) {
+    try {
+      const formats = await BarcodeDetector.getSupportedFormats();
+      if (formats.includes('qr_code')) {
+        detector = new BarcodeDetector({ formats: ['qr_code'] });
+        setScanStatus('✅ Bereit – Karte fotografieren', 'ok');
+        return true;
+      }
+    } catch(e) {}
+  }
+  setScanStatus('⚠️ iOS 16.4+ erforderlich', 'err');
+  return false;
+}
+
 // ── QR via file input (native iOS camera) ────────────────────────────
 function triggerScan() {
-  // Reset input so same file can be selected again
   const input = document.getElementById('qrInput');
   input.value = '';
   input.click();
 }
 
-document.getElementById('qrInput').addEventListener('change', function(e) {
+document.getElementById('qrInput').addEventListener('change', async function(e) {
   const file = e.target.files[0];
   if (!file) return;
-
   setScanStatus('Verarbeite Foto…', '');
 
-  const reader = new FileReader();
-  reader.onload = function(ev) {
-    const img = new Image();
-    img.onload = function() {
-      processImage(img);
-    };
-    img.onerror = () => setScanStatus('❌ Fehler beim Laden', 'err');
-    img.src = ev.target.result;
-  };
-  reader.readAsDataURL(file);
-});
+  try {
+    // Create ImageBitmap from file – works best with BarcodeDetector
+    const bitmap = await createImageBitmap(file);
 
-function processImage(img) {
-  const canvas = document.getElementById('processCanvas');
-  const ctx = canvas.getContext('2d');
+    if (detector) {
+      // Use native BarcodeDetector
+      const codes = await detector.detect(bitmap);
+      bitmap.close();
 
-  // Check jsQR loaded
-  if (typeof jsQR === 'undefined') {
-    setScanStatus('❌ Scanner nicht geladen – Seite neu laden', 'err');
-    return;
-  }
+      if (codes.length > 0) {
+        setScanStatus('✅ Code erkannt!', 'ok');
+        handleQR(codes[0].rawValue);
+        return;
+      }
 
-  // Try multiple scales for best detection
-  const scales = [800, 1200, 400];
-  for (const maxDim of scales) {
-    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-    canvas.width  = Math.round(img.width * scale);
-    canvas.height = Math.round(img.height * scale);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      // Try again with canvas resize if not detected
+      const canvas = document.getElementById('processCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 1000;
+      canvas.height = Math.round(1000 * (bitmap.height / bitmap.width));
 
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imageData.data, imageData.width, imageData.height, {
-      inversionAttempts: 'attemptBoth'
-    });
+      const bitmap2 = await createImageBitmap(file);
+      ctx.drawImage(bitmap2, 0, 0, canvas.width, canvas.height);
+      bitmap2.close();
 
-    if (code && code.data) {
-      setScanStatus('✅ Code erkannt!', 'ok');
-      handleQR(code.data);
-      return;
+      const codes2 = await detector.detect(canvas);
+      if (codes2.length > 0) {
+        setScanStatus('✅ Code erkannt!', 'ok');
+        handleQR(codes2[0].rawValue);
+        return;
+      }
+
+      setScanStatus('❌ Nicht erkannt – näher ran & nochmal versuchen', 'err');
+    } else {
+      setScanStatus('❌ BarcodeDetector nicht verfügbar', 'err');
     }
+  } catch(e) {
+    setScanStatus('❌ Fehler: ' + e.message, 'err');
   }
-
-  setScanStatus('❌ Nicht erkannt – näher ran & nochmal versuchen', 'err');
-}
+});
 
 // ── QR Handler ────────────────────────────────────────────────────────
 function handleQR(data) {
@@ -477,6 +487,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('pbtn').addEventListener('click', togglePlay);
   document.getElementById('rbtn').addEventListener('click', reveal);
   document.getElementById('btnNext').addEventListener('click', goScan);
+  // Init detector on load
+  initDetector();
 });
 
 // ── Direct URL load ───────────────────────────────────────────────────
