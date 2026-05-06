@@ -6,12 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ESC Hitster">
-<meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#08080F">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="apple-touch-icon" sizes="192x192" href="icon-192.png">
-<link rel="apple-touch-icon" sizes="512x512" href="icon-512.png">
 <title>ESC Hitster</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
@@ -34,19 +31,15 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .screen.hidden { opacity:0; pointer-events:none; transform:scale(.97); }
 
 /* ══ SCAN SCREEN ══ */
-#scanScreen { background:var(--bg); padding:0; }
+#scanScreen { background:var(--bg); padding:0; overflow:hidden; }
 
-.scan-header { position:absolute; top:0; left:0; right:0; padding:max(env(safe-area-inset-top),20px) 24px 14px; display:flex; align-items:center; gap:10px; background:linear-gradient(to bottom,rgba(8,8,15,.9) 60%,transparent); z-index:10; }
+.scan-header { position:absolute; top:0; left:0; right:0; padding:max(env(safe-area-inset-top),20px) 24px 14px; display:flex; align-items:center; gap:10px; background:linear-gradient(to bottom,rgba(8,8,15,.95) 60%,transparent); z-index:10; }
 .hrt { width:24px; height:24px; color:var(--red); flex-shrink:0; }
 .htitle { font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:3px; background:linear-gradient(135deg,var(--gold),#fff 60%,var(--gold2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
 
-/* ZXing video fills screen */
-#zxing-video {
-  width:100%; height:100%;
-  object-fit:cover;
-  display:block;
-}
-.cam-wrap { width:100%; height:100%; position:relative; }
+.cam-wrap { position:absolute; inset:0; }
+#video { width:100%; height:100%; object-fit:cover; display:block; }
+#qr-canvas { display:none; }
 .vignette { position:absolute; inset:0; pointer-events:none; background:radial-gradient(ellipse 55% 55% at 50% 48%,transparent 35%,rgba(8,8,15,.85) 100%); }
 
 .scan-box { position:absolute; width:min(68vw,255px); height:min(68vw,255px); top:48%; left:50%; transform:translate(-50%,-50%); pointer-events:none; }
@@ -58,21 +51,35 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .scan-line { position:absolute; left:5px; right:5px; height:2px; background:linear-gradient(90deg,transparent,var(--gold),transparent); box-shadow:0 0 10px var(--gold); animation:sl 1.8s ease-in-out infinite; }
 @keyframes sl { 0%{top:4px} 50%{opacity:.4} 100%{top:calc(100% - 6px)} }
 
-.scan-bottom { position:absolute; bottom:0; left:0; right:0; padding:16px 24px max(env(safe-area-inset-bottom),20px); display:flex; flex-direction:column; align-items:center; gap:8px; background:linear-gradient(to top,rgba(8,8,15,.9) 60%,transparent); }
+.scan-bottom { position:absolute; bottom:0; left:0; right:0; padding:16px 24px max(env(safe-area-inset-bottom),24px); display:flex; flex-direction:column; align-items:center; gap:6px; background:linear-gradient(to top,rgba(8,8,15,.95) 60%,transparent); }
 .scan-hint { font-size:12px; font-weight:600; letter-spacing:2px; text-transform:uppercase; color:rgba(255,255,255,.4); }
-.scan-stat { font-size:12px; color:rgba(245,200,66,.8); min-height:16px; text-align:center; }
+.scan-stat { font-size:12px; color:rgba(245,200,66,.9); min-height:18px; text-align:center; }
 
-#startPrompt { position:absolute; inset:0; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; padding:40px; text-align:center; z-index:5; }
-.start-btn { background:linear-gradient(135deg,var(--red),#C00030); border:none; border-radius:50px; color:white; font-family:'DM Sans',sans-serif; font-size:16px; font-weight:600; padding:16px 36px; cursor:pointer; box-shadow:0 8px 24px rgba(232,0,61,.4); }
+/* Start prompt – shown before camera */
+#startPrompt {
+  position:absolute; inset:0; background:var(--bg);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:20px; padding:40px; text-align:center; z-index:5;
+}
+.start-btn {
+  background:linear-gradient(135deg,var(--red),#C00030);
+  border:none; border-radius:50px; color:white;
+  font-family:'DM Sans',sans-serif; font-size:16px; font-weight:600;
+  padding:16px 36px; cursor:pointer;
+  box-shadow:0 8px 24px rgba(232,0,61,.4);
+  /* Make sure it's always tappable */
+  position:relative; z-index:10;
+  -webkit-appearance:none;
+  min-width:200px; min-height:50px;
+}
 .start-sub { font-size:13px; color:var(--muted); max-width:260px; line-height:1.6; }
+.lib-status { font-size:11px; color:var(--muted); }
 
 /* ══ PLAY SCREEN ══ */
 #playScreen { padding:24px; padding-top:max(env(safe-area-inset-top),24px); justify-content:flex-start; background:var(--bg); gap:16px; }
 
 .play-header { width:100%; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
-.btn-scan { display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--border); border-radius:50px; padding:10px 18px; color:var(--muted); font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; cursor:pointer; transition:all .2s; }
-.btn-scan:hover,.btn-scan:active { border-color:var(--gold); color:var(--gold); }
-.btn-scan svg { width:14px; height:14px; }
+.btn-scan { display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--border); border-radius:50px; padding:10px 18px; color:var(--muted); font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; cursor:pointer; -webkit-appearance:none; }
 
 .mystery { width:100%; max-width:400px; background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:28px 24px; display:flex; flex-direction:column; align-items:center; gap:10px; position:relative; overflow:hidden; flex-shrink:0; }
 .mystery::before { content:''; position:absolute; inset:0; background:repeating-linear-gradient(-45deg,transparent,transparent 12px,rgba(255,255,255,.015) 12px,rgba(255,255,255,.015) 24px); }
@@ -94,8 +101,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .pfill { height:100%; width:0%; background:linear-gradient(90deg,var(--red),var(--gold)); border-radius:2px; transition:width .5s linear; }
 .tlbl { font-size:12px; color:var(--muted); min-width:36px; text-align:right; font-variant-numeric:tabular-nums; }
 
-.pbtn { width:76px; height:76px; border-radius:50%; background:linear-gradient(135deg,var(--red),#C00030); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 8px 28px rgba(232,0,61,.45); transition:transform .15s; }
-.pbtn:active { transform:scale(.92); }
+.pbtn { width:76px; height:76px; border-radius:50%; background:linear-gradient(135deg,var(--red),#C00030); border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 8px 28px rgba(232,0,61,.45); -webkit-appearance:none; }
 .pbtn.on { background:linear-gradient(135deg,var(--green),#009948); animation:pulse 2s ease-in-out infinite; }
 @keyframes pulse { 0%,100%{box-shadow:0 8px 28px rgba(0,200,100,.4)} 50%{box-shadow:0 8px 40px rgba(0,200,100,.7),0 0 0 12px rgba(0,200,100,.08)} }
 .pbtn svg { width:30px; height:30px; fill:white; }
@@ -106,7 +112,7 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 .stat.ok{color:var(--green);} .stat.err{color:var(--red);}
 
 .btns { width:100%; max-width:400px; }
-.btn { width:100%; padding:14px; border-radius:14px; border:1px solid var(--border); background:var(--surface); color:var(--muted); cursor:pointer; font-family:'DM Sans',sans-serif; font-size:14px; font-weight:600; transition:all .2s; }
+.btn { width:100%; padding:14px; border-radius:14px; border:1px solid var(--border); background:var(--surface); color:var(--muted); cursor:pointer; font-family:'DM Sans',sans-serif; font-size:14px; font-weight:600; -webkit-appearance:none; }
 .btn.done { background:rgba(245,200,66,.08); border-color:rgba(245,200,66,.3); color:var(--gold); }
 
 .cf { position:fixed; inset:0; pointer-events:none; z-index:999; overflow:hidden; }
@@ -127,7 +133,8 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
   </div>
 
   <div class="cam-wrap">
-    <video id="zxing-video" playsinline></video>
+    <video id="video" playsinline autoplay muted></video>
+    <canvas id="qr-canvas"></canvas>
     <div class="vignette"></div>
     <div class="scan-box">
       <div class="scan-line"></div>
@@ -139,13 +146,15 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     </div>
   </div>
 
+  <!-- Shown before camera starts -->
   <div id="startPrompt">
     <svg style="width:52px;height:52px;color:var(--gold)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
       <path d="M15 3h4a2 2 0 012 2v4M9 3H5a2 2 0 00-2 2v4M15 21h4a2 2 0 002-2v-4M9 21H5a2 2 0 01-2-2v-4"/>
       <rect x="7" y="7" width="10" height="10" rx="1"/>
     </svg>
-    <div class="start-sub">Tippe um die Kamera zu starten und ESC-Karten zu scannen</div>
-    <button class="start-btn" onclick="startScanner()">📷 Kamera starten</button>
+    <div class="start-sub">Tippe um die Kamera zu starten</div>
+    <button class="start-btn" id="startBtn">📷 Kamera starten</button>
+    <div class="lib-status" id="libStatus">Lade Scanner…</div>
   </div>
 </div>
 
@@ -155,8 +164,8 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
     <svg class="hrt" viewBox="0 0 100 90" fill="none" stroke="currentColor" stroke-width="8" stroke-linejoin="round">
       <path d="M50 80C50 80 5 50 5 25C5 12 14 4 26 4C35 4 44 10 50 20C56 10 65 4 74 4C86 4 95 12 95 25C95 50 50 80 50 80Z"/>
     </svg>
-    <button class="btn-scan" onclick="goScan()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <button class="btn-scan" id="btnScan">
+      <svg style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/>
         <rect x="7" y="7" width="10" height="10" rx="1"/>
       </svg>
@@ -184,13 +193,13 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
       <div class="pbar"><div class="pfill" id="pfill"></div></div>
       <div class="tlbl" id="tlbl">—</div>
     </div>
-    <button class="pbtn" id="pbtn" onclick="togglePlay()">
+    <button class="pbtn" id="pbtn">
       <svg class="iplay"  viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
       <svg class="ipause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
     </button>
     <div class="stat" id="stat">—</div>
     <div class="btns">
-      <button class="btn" id="rbtn" onclick="reveal()">🔓 Auflösen</button>
+      <button class="btn" id="rbtn">🔓 Auflösen</button>
     </div>
   </div>
 </div>
@@ -198,75 +207,109 @@ html,body { height:100%; background:var(--bg); color:var(--text); font-family:'D
 <div class="cf" id="cf"></div>
 <audio id="aud" preload="none"></audio>
 
-<!-- ZXing browser QR library - better mobile support than jsQR -->
-<script src="https://unpkg.com/@zxing/browser@0.1.4/umd/index.min.js"></script>
 <script>
-// Stars
+// ── Stars ─────────────────────────────────────────────────────────────
 const se=document.getElementById('stars');
 for(let i=0;i<50;i++){const s=document.createElement('div');s.className='star';const z=1+Math.random()*2;s.style.cssText=`left:${Math.random()*100}%;top:${Math.random()*100}%;width:${z}px;height:${z}px;--d:${2+Math.random()*4}s;--dl:${Math.random()*5}s`;se.appendChild(s);}
 
-const aud=document.getElementById('aud');
-let playing=false,revealed=false,pt=null;
-let codeReader=null, scanning=false, lastScan=0;
+// ── State ─────────────────────────────────────────────────────────────
+const aud = document.getElementById('aud');
+const video = document.getElementById('video');
+const canvas = document.getElementById('qr-canvas');
+const ctx = canvas.getContext('2d', {willReadFrequently: true});
+let playing=false, revealed=false, pt=null;
+let scanInterval=null, lastScan=0, jsQRLoaded=false;
 
+// ── Load jsQR ─────────────────────────────────────────────────────────
+function loadJsQR() {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js';
+    script.onload = () => { jsQRLoaded = true; resolve(); };
+    script.onerror = () => reject(new Error('jsQR konnte nicht geladen werden'));
+    document.head.appendChild(script);
+  });
+}
+
+// Load jsQR immediately
+loadJsQR().then(() => {
+  document.getElementById('libStatus').textContent = '✓ Scanner bereit';
+  document.getElementById('libStatus').style.color = 'var(--green)';
+}).catch(e => {
+  document.getElementById('libStatus').textContent = '⚠ Offline? ' + e.message;
+  document.getElementById('libStatus').style.color = 'var(--red)';
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');}
 function setStat(m,c){const e=document.getElementById('stat');e.textContent=m;e.className='stat'+(c?' '+c:'');}
 function setScanStat(m){document.getElementById('scanStat').textContent=m;}
-function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');}
 
-// ── ZXing Scanner ─────────────────────────────────────────────────────
-async function startScanner() {
+// ── Camera ────────────────────────────────────────────────────────────
+async function startCamera() {
   document.getElementById('startPrompt').style.display = 'none';
-  setScanStat('Kamera wird gestartet…');
+  setScanStat('Kamera startet…');
 
   try {
-    // Get list of cameras
-    const devices = await ZXingBrowser.BrowserCodeReader.listVideoInputDevices();
-    // Prefer back camera
-    const backCam = devices.find(d =>
-      d.label.toLowerCase().includes('back') ||
-      d.label.toLowerCase().includes('rear') ||
-      d.label.toLowerCase().includes('environment') ||
-      d.label.toLowerCase().includes('hinten')
-    ) || devices[devices.length - 1] || devices[0];
-
-    const deviceId = backCam ? backCam.deviceId : undefined;
-
-    codeReader = new ZXingBrowser.BrowserQRCodeReader(undefined, {
-      delayBetweenScanAttempts: 150,
-      delayBetweenScanSuccess: 2000,
-    });
-
-    setScanStat('Kamera läuft – Karte scannen');
-    scanning = true;
-
-    await codeReader.decodeFromVideoDevice(deviceId, 'zxing-video', (result, err) => {
-      if (!scanning) return;
-      if (result) {
-        const now = Date.now();
-        if (now - lastScan < 2500) return;
-        lastScan = now;
-        setScanStat('✅ Code erkannt!');
-        handleQR(result.getText());
+    // Request camera with back camera preference
+    const constraints = {
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
       }
-      // Ignore errors - they fire constantly when no QR visible
+    };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = stream;
+    video.setAttribute('playsinline', 'true');
+    await new Promise(resolve => {
+      video.onloadedmetadata = () => { video.play(); resolve(); };
     });
-
+    setScanStat('📷 Karte vor die Kamera halten');
+    startScan();
   } catch(e) {
     setScanStat('Fehler: ' + e.message);
     document.getElementById('startPrompt').style.display = 'flex';
   }
 }
 
-function stopScanner() {
-  scanning = false;
-  if (codeReader) {
-    try { codeReader.reset(); } catch(e) {}
-  }
+// ── QR Scan loop ──────────────────────────────────────────────────────
+function startScan() {
+  stopScan();
+  scanInterval = setInterval(() => {
+    if (!jsQRLoaded) return;
+    if (video.readyState < 2 || video.videoWidth === 0) return;
+
+    // Draw current frame to canvas
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Get image data
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    // Scan with jsQR
+    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+      inversionAttempts: 'attemptBoth'
+    });
+
+    if (code && code.data) {
+      const now = Date.now();
+      if (now - lastScan < 2000) return;
+      lastScan = now;
+      setScanStat('✅ Code erkannt!');
+      handleQR(code.data);
+    }
+  }, 250); // scan 4x per second
+}
+
+function stopScan() {
+  if (scanInterval) { clearInterval(scanInterval); scanInterval = null; }
 }
 
 // ── QR Handler ────────────────────────────────────────────────────────
 function handleQR(data) {
-  stopScanner();
+  stopScan();
   let song = null;
   try {
     const url = new URL(data);
@@ -281,8 +324,8 @@ function handleQR(data) {
   } catch(e) {}
 
   if (!song) {
-    setScanStat('Kein ESC QR-Code – nochmal versuchen');
-    scanning = true;
+    setScanStat('Kein ESC QR-Code');
+    setTimeout(startScan, 1500);
     return;
   }
   loadSong(song);
@@ -292,16 +335,16 @@ function handleQR(data) {
 function loadSong(song) {
   aud.pause(); aud.src = '';
   clearInterval(pt);
-  playing = false; revealed = false;
+  playing=false; revealed=false;
 
-  document.getElementById('mystery').style.display  = 'flex';
-  document.getElementById('revcard').style.display  = 'none';
-  document.getElementById('rbtn').className         = 'btn';
-  document.getElementById('rbtn').textContent       = '🔓 Auflösen';
+  document.getElementById('mystery').style.display = 'flex';
+  document.getElementById('revcard').style.display = 'none';
+  document.getElementById('rbtn').className = 'btn';
+  document.getElementById('rbtn').textContent = '🔓 Auflösen';
   document.getElementById('pbtn').classList.remove('on');
   document.getElementById('glow').classList.remove('on');
-  document.getElementById('pfill').style.width      = '0%';
-  document.getElementById('tlbl').textContent       = '—';
+  document.getElementById('pfill').style.width = '0%';
+  document.getElementById('tlbl').textContent = '—';
 
   document.getElementById('rY').textContent  = song.year;
   document.getElementById('rT').textContent  = song.title;
@@ -316,6 +359,7 @@ function loadSong(song) {
 
 // ── iTunes Preview ────────────────────────────────────────────────────
 async function fetchPreview(song) {
+  // Try direct lookup by iTunes song ID first (most reliable)
   if (song.sid) {
     try {
       const r = await fetch('https://itunes.apple.com/lookup?id=' + song.sid);
@@ -324,6 +368,7 @@ async function fetchPreview(song) {
       if (hit) { setAudio(hit.previewUrl); return; }
     } catch(e) {}
   }
+  // Fallback: search
   try {
     const q = encodeURIComponent(song.artist + ' ' + song.title);
     const r = await fetch('https://itunes.apple.com/search?term=' + q + '&media=music&entity=song&limit=10&country=de');
@@ -344,20 +389,20 @@ function setAudio(url) {
 function togglePlay() {
   if (!aud.src || aud.src === location.href) { setStat('Kein Song geladen','err'); return; }
   if (playing) {
-    aud.pause(); playing = false;
+    aud.pause(); playing=false;
     document.getElementById('pbtn').classList.remove('on');
     document.getElementById('glow').classList.remove('on');
     clearInterval(pt); setStat('Pausiert','');
   } else {
     aud.play().then(() => {
-      playing = true;
+      playing=true;
       document.getElementById('pbtn').classList.add('on');
       document.getElementById('glow').classList.add('on');
       setStat('♫ Spielt…','ok');
       pt = setInterval(() => {
         if (!aud.duration) return;
         document.getElementById('pfill').style.width = (aud.currentTime/aud.duration*100)+'%';
-        const r = Math.max(0, Math.ceil(aud.duration - aud.currentTime));
+        const r = Math.max(0, Math.ceil(aud.duration-aud.currentTime));
         document.getElementById('tlbl').textContent = Math.floor(r/60)+':'+String(r%60).padStart(2,'0');
       }, 500);
     }).catch(e => setStat('Fehler: '+e.message,'err'));
@@ -365,21 +410,22 @@ function togglePlay() {
 }
 
 aud.addEventListener('ended', () => {
-  playing = false;
+  playing=false;
   document.getElementById('pbtn').classList.remove('on');
   document.getElementById('glow').classList.remove('on');
-  document.getElementById('pfill').style.width = '100%';
-  document.getElementById('tlbl').textContent = '0:00';
+  document.getElementById('pfill').style.width='100%';
+  document.getElementById('tlbl').textContent='0:00';
   clearInterval(pt); setStat('Fertig – was tippst du?','');
 });
 
 // ── Reveal ────────────────────────────────────────────────────────────
 function reveal() {
-  if (revealed) return; revealed = true;
-  document.getElementById('mystery').style.display = 'none';
-  document.getElementById('revcard').style.display = 'flex';
-  document.getElementById('rbtn').className = 'btn done';
-  document.getElementById('rbtn').textContent = '✓ Aufgedeckt';
+  if (revealed) return; revealed=true;
+  document.getElementById('mystery').style.display='none';
+  document.getElementById('revcard').style.display='flex';
+  document.getElementById('rbtn').className='btn done';
+  document.getElementById('rbtn').textContent='✓ Aufgedeckt';
+  // Confetti
   const cols=['#F5C842','#E8003D','#fff','#00C864','#4488FF'];
   const c=document.getElementById('cf');
   for(let i=0;i<36;i++){
@@ -395,10 +441,18 @@ function reveal() {
 
 // ── Navigation ────────────────────────────────────────────────────────
 function goScan() {
-  aud.pause(); aud.src = ''; playing = false; clearInterval(pt);
+  aud.pause(); aud.src=''; playing=false; clearInterval(pt);
   show('scanScreen');
-  setTimeout(() => { scanning = true; }, 300);
+  setTimeout(startScan, 400);
 }
+
+// ── Wire up buttons AFTER DOM ready ───────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('startBtn').addEventListener('click', startCamera);
+  document.getElementById('pbtn').addEventListener('click', togglePlay);
+  document.getElementById('rbtn').addEventListener('click', reveal);
+  document.getElementById('btnScan').addEventListener('click', goScan);
+});
 
 // ── Direct URL load ───────────────────────────────────────────────────
 window.addEventListener('load', () => {
