@@ -292,23 +292,37 @@ document.getElementById('qrInput').addEventListener('change', function(e) {
 
   setScanStatus('Verarbeite Foto…', '');
 
-  const img = new Image();
-  const url = URL.createObjectURL(file);
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const img = new Image();
+    img.onload = function() {
+      processImage(img);
+    };
+    img.onerror = () => setScanStatus('❌ Fehler beim Laden', 'err');
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
 
-  img.onload = function() {
-    const canvas = document.getElementById('processCanvas');
-    const ctx = canvas.getContext('2d');
+function processImage(img) {
+  const canvas = document.getElementById('processCanvas');
+  const ctx = canvas.getContext('2d');
 
-    // Draw image to canvas
-    canvas.width  = img.width;
-    canvas.height = img.height;
-    ctx.drawImage(img, 0, 0);
+  // Check jsQR loaded
+  if (typeof jsQR === 'undefined') {
+    setScanStatus('❌ Scanner nicht geladen – Seite neu laden', 'err');
+    return;
+  }
 
-    // Get image data for jsQR
+  // Try multiple scales for best detection
+  const scales = [800, 1200, 400];
+  for (const maxDim of scales) {
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    canvas.width  = Math.round(img.width * scale);
+    canvas.height = Math.round(img.height * scale);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    URL.revokeObjectURL(url);
-
-    // Try scanning
     const code = jsQR(imageData.data, imageData.width, imageData.height, {
       inversionAttempts: 'attemptBoth'
     });
@@ -316,28 +330,12 @@ document.getElementById('qrInput').addEventListener('change', function(e) {
     if (code && code.data) {
       setScanStatus('✅ Code erkannt!', 'ok');
       handleQR(code.data);
-    } else {
-      // Try with downscaled version for better detection
-      const scale = Math.min(1, 1200 / Math.max(img.width, img.height));
-      canvas.width  = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      const imageData2 = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const code2 = jsQR(imageData2.data, imageData2.width, imageData2.height, {
-        inversionAttempts: 'attemptBoth'
-      });
-      if (code2 && code2.data) {
-        setScanStatus('✅ Code erkannt!', 'ok');
-        handleQR(code2.data);
-      } else {
-        setScanStatus('❌ QR-Code nicht erkannt – nochmal versuchen', 'err');
-      }
+      return;
     }
-  };
+  }
 
-  img.onerror = () => setScanStatus('Fehler beim Laden des Fotos', 'err');
-  img.src = url;
-});
+  setScanStatus('❌ Nicht erkannt – näher ran & nochmal versuchen', 'err');
+}
 
 // ── QR Handler ────────────────────────────────────────────────────────
 function handleQR(data) {
