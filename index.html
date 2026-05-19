@@ -301,6 +301,7 @@ function loadSong(song) {
 
 // ── iTunes Preview ────────────────────────────────────────────────────
 async function fetchPreview(song) {
+  // Strategy 1: Lookup by song ID
   if (song.sid) {
     try {
       const r=await fetch('https://itunes.apple.com/lookup?id='+song.sid);
@@ -309,9 +310,26 @@ async function fetchPreview(song) {
       if (hit) { setAudio(hit.previewUrl); return; }
     } catch(e) {}
   }
+  // Strategy 2: Search with country=de
   try {
     const q=encodeURIComponent(song.artist+' '+song.title);
     const r=await fetch('https://itunes.apple.com/search?term='+q+'&media=music&entity=song&limit=10&country=de');
+    const d=await r.json();
+    const hit=(d.results||[]).find(x=>x.previewUrl);
+    if (hit) { setAudio(hit.previewUrl); return; }
+  } catch(e) {}
+  // Strategy 3: Search without country filter
+  try {
+    const q=encodeURIComponent(song.artist+' '+song.title);
+    const r=await fetch('https://itunes.apple.com/search?term='+q+'&media=music&entity=song&limit=10');
+    const d=await r.json();
+    const hit=(d.results||[]).find(x=>x.previewUrl);
+    if (hit) { setAudio(hit.previewUrl); return; }
+  } catch(e) {}
+  // Strategy 4: Search by title only
+  try {
+    const q=encodeURIComponent(song.title);
+    const r=await fetch('https://itunes.apple.com/search?term='+q+'&media=music&entity=song&limit=10');
     const d=await r.json();
     const hit=(d.results||[]).find(x=>x.previewUrl);
     if (hit) { setAudio(hit.previewUrl); return; }
